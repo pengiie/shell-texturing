@@ -24,7 +24,7 @@ const vec3 LIGHT_COLOR = vec3(1.0, 0.76, 0.09);
 const vec3 UP_NORMAL = vec3(0.0, 1.0, 0.0);
 
 // Density of grass blades per cm^2.
-const float density = 100;
+const float density = 20;
 
 float hash(vec2 v) {
     v = (1./4320.) * v + vec2(0.25,0.);
@@ -36,7 +36,8 @@ void main() {
   vec3 grass_color = GRASS_COLOR;
 
   // Calculate the position of the grass blade.
-  vec2 block_uv = floor(uv * density) * 2 - 1;
+  vec2 block_uv = floor(fract(uv + vec2(push_constants.time / 5, cos(push_constants.time/ 10))) * density) * 2 - 1;
+
   vec2 local_uv = fract(uv * density) * 2 - 1;
   vec2 seed = block_uv * 100.0 + vec2(12.9898, 78.233);
   float r = hash(seed);
