@@ -1,6 +1,8 @@
+use std::{any::Any, sync::Arc};
+
 use ash::vk;
 use pyrite::{
-    prelude::{AppBuilder, Assets, Res, ResMut, Resource},
+    prelude::{AppBuilder, Assets, Input, Key, Res, ResMut, Resource, Time},
     render::render_manager::{self, RenderManager},
     vulkan::{
         AttachmentInfo, CommandBuffer, GraphicsPipeline, GraphicsPipelineInfo, Image, RenderPass,
@@ -39,10 +41,21 @@ pub struct ShellRenderer {
     shader_dependency_signal: watched_shaders::DependencySignal,
     pipeline: Option<ShellPipeline>,
     plane_mesh: Mesh,
+    resolution: u32,
+    grass_height: f32,
 }
 
 struct ShellPipeline {
     graphics_pipeline: GraphicsPipeline,
+}
+
+struct ShellPushConstants {
+    // The current time in seconds since the start of the session.
+    time: f32,
+    // Planes per cm.
+    resolution: u32,
+    // The height of the grass in cm.
+    grass_height: f32,
 }
 
 impl ShellRenderer {
@@ -75,6 +88,8 @@ impl ShellRenderer {
             shader_dependency_signal,
             pipeline: None,
             plane_mesh,
+            resolution: 10,
+            grass_height: 10.0,
         }
     }
 
@@ -82,7 +97,12 @@ impl ShellRenderer {
         self.pipeline.is_some()
     }
 
-    pub fn render(&self, render_manager: &mut RenderManager, render_pipeline: &RenderPipeline) {
+    pub fn render(
+        &self,
+        render_manager: &mut RenderManager,
+        render_pipeline: &RenderPipeline,
+        current_time: f32,
+    ) -> Vec<Arc<dyn Any + Send + Sync>> {
         if let Some(pipeline) = &self.pipeline {
             let backbuffer_image = render_manager.backbuffer_image();
 
@@ -101,6 +121,8 @@ impl ShellRenderer {
                     vk::Viewport::builder()
                         .width(backbuffer_image.image_extent().width as f32)
                         .height(backbuffer_image.image_extent().height as f32)
+                        .min_depth(0.0)
+                        .max_depth(1.0)
                         .build(),
                 );
             render_manager
@@ -122,17 +144,39 @@ impl ShellRenderer {
                     &descriptor_sets,
                 );
 
-            let clear_values = &[vk::ClearValue {
-                color: vk::ClearColorValue {
-                    float32: [0.0, 0.0, 0.0, 1.0],
+            let clear_values = &[
+                vk::ClearValue {
+                    color: vk::ClearColorValue {
+                        float32: [0.568, 0.8, 0.85, 1.0],
+                    },
                 },
-            }];
+                vk::ClearValue {
+                    depth_stencil: vk::ClearDepthStencilValue {
+                        depth: 1.0,
+                        stencil: 0,
+                    },
+                },
+            ];
 
             render_manager.frame().command_buffer().begin_render_pass(
                 pipeline.graphics_pipeline.render_pass(),
                 render_area,
                 clear_values,
             );
+
+            render_manager
+                .frame()
+                .command_buffer()
+                .write_push_constants_typed(
+                    pipeline.graphics_pipeline.pipeline_layout(),
+                    vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
+                    0,
+                    &ShellPushConstants {
+                        time: current_time,
+                        resolution: self.resolution,
+                        grass_height: self.grass_height,
+                    },
+                );
 
             render_manager
                 .frame_mut()
@@ -144,14 +188,21 @@ impl ShellRenderer {
                 .bind_index_buffer(self.plane_mesh.index_buffer(), vk::IndexType::UINT32);
             render_manager.frame().command_buffer().draw_indexed(
                 self.plane_mesh.vertex_count() as u32,
-                8,
+                f32::floor(self.grass_height * self.resolution as f32) as u32,
                 0,
                 0,
                 0,
             );
 
             render_manager.frame().command_buffer().end_render_pass();
+
+            return vec![
+                self.plane_mesh.vertex_buffer().clone(),
+                self.plane_mesh.index_buffer().clone(),
+            ];
         }
+
+        vec![]
     }
 
     fn refresh_pipeline(
@@ -163,8 +214,16 @@ impl ShellRenderer {
     ) {
         let mut subpass = Subpass::new();
         subpass.color_attachment(
-            &render_manager.backbuffer_image().as_color_attachment(
-                AttachmentInfo::default().load_op(vk::AttachmentLoadOp::CLEAR),
+            &render_manager
+                .backbuffer_image()
+                .as_attachment(AttachmentInfo::default().load_op(vk::AttachmentLoadOp::CLEAR)),
+        );
+        subpass.depth_attachment(
+            &render_pipeline.backbuffer_depth_image().as_attachment(
+                AttachmentInfo::default()
+                    .load_op(vk::AttachmentLoadOp::CLEAR)
+                    .final_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                    .is_depth(true),
             ),
         );
 
@@ -215,12 +274,24 @@ impl ShellRenderer {
                             .build()])
                         .build(),
                 )
+                .depth_stencil_state(
+                    vk::PipelineDepthStencilStateCreateInfo::builder()
+                        .depth_test_enable(true)
+                        .depth_write_enable(true)
+                        .depth_compare_op(vk::CompareOp::LESS_OR_EQUAL)
+                        .build(),
+                )
                 .dynamic_state(
                     vk::PipelineDynamicStateCreateInfo::builder()
                         .dynamic_states(&dynamic_states)
                         .build(),
                 )
                 .descriptor_set_layout(render_pipeline.descriptor_set_layout())
+                .push_constant_ranges(vec![vk::PushConstantRange {
+                    stage_flags: vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
+                    offset: 0,
+                    size: std::mem::size_of::<ShellPushConstants>() as u32,
+                }])
                 .render_pass(render_pass)
                 .build(),
         );
@@ -234,6 +305,8 @@ impl ShellRenderer {
         watched_shaders: Res<WatchedShaders>,
         render_manager: Res<RenderManager>,
         render_pipeline: Res<RenderPipeline>,
+        input: Res<Input>,
+        time: Res<Time>,
     ) {
         let shell_renderer = &mut *shell_renderer;
 
@@ -243,6 +316,34 @@ impl ShellRenderer {
                 &*watched_shaders,
                 &*render_manager,
                 &*render_pipeline,
+            );
+        }
+
+        // Edit resolution.
+        let mut modified = false;
+        if input.is_key_repeat(Key::H) || input.is_key_pressed(Key::H) {
+            shell_renderer.resolution = (shell_renderer.resolution as i32 - 1).max(1) as u32;
+            modified = true;
+        }
+        if input.is_key_repeat(Key::L) || input.is_key_pressed(Key::L) {
+            shell_renderer.resolution += 1;
+            modified = true;
+        }
+        if input.is_key_repeat(Key::J) || input.is_key_pressed(Key::J) {
+            shell_renderer.grass_height = (shell_renderer.grass_height - 0.1).max(0.1);
+            modified = true;
+        }
+        if input.is_key_repeat(Key::K) || input.is_key_pressed(Key::K) {
+            shell_renderer.grass_height += 0.1;
+            modified = true;
+        }
+
+        if modified {
+            println!("Resolution: {}", shell_renderer.resolution);
+            println!("Grass height: {}", shell_renderer.grass_height);
+            println!(
+                "Plane count: {}",
+                f32::floor(shell_renderer.grass_height * shell_renderer.resolution as f32) as u32
             );
         }
     }

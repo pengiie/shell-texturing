@@ -141,7 +141,7 @@ impl Camera {
             window.width(),
             window.height(),
             90.0f32.to_radians(),
-            0.1,
+            0.01,
             1000.0,
         );
         camera.calculate_view();
