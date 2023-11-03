@@ -166,6 +166,39 @@ impl<'a, 'b, 'c> MeshFactory<'a, 'b, 'c> {
             indices,
         )
     }
+
+    /// Create a sphere with the given subdvisions.
+    pub fn create_sphere(&mut self, subdivisions: u32) -> Mesh {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+
+        let mut index = 0;
+        for i in 0..subdivisions {
+            let i = i as f32;
+            for j in 0..subdivisions {
+                let j = j as f32;
+
+                let x = (i / subdivisions as f32) * std::f32::consts::PI * 2.0;
+                let y = (j / subdivisions as f32) * std::f32::consts::PI;
+
+                let x = x.sin() * y.sin();
+                let y = y.cos();
+                let z = x.cos() * y.sin();
+
+                vertices.push((x, y, z));
+                indices.push(index);
+                index += 1;
+            }
+        }
+
+        Mesh::new(
+            self.vulkan,
+            self.vulkan_allocator,
+            self.vulkan_stager,
+            into_vertices(vertices),
+            indices,
+        )
+    }
 }
 
 fn into_vertices(vertices: Vec<(f32, f32, f32)>) -> Vec<Vertex> {

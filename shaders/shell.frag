@@ -19,17 +19,19 @@ const float TAU = 6.28318530718;
 const vec3 GRASS_COLOR = vec3(0.0, 0.5, 0.0);
 
 const vec3 LIGHT_POS = vec3(4.3, 3.5, 5);
-const float LIGHT_INTENSITY = 2.0;
+const float LIGHT_INTENSITY = 1.3;
 const vec3 LIGHT_COLOR = vec3(1.0, 0.76, 0.09);
 const vec3 UP_NORMAL = vec3(0.0, 1.0, 0.0);
 
 // Density of grass blades per cm^2.
-const float density = 20;
+const float density = 50;
 
 float hash(vec2 v) {
     v = (1./4320.) * v + vec2(0.25,0.);
     float state = fract( dot( v * v, vec2(3571)));
-    return fract( state * state * (3571. * 2.));
+    float rq = fract( state * state * (3571. * 2.));
+    float rt = fract( rq * rq * (3571. * 2.));
+    return fract( rt * rt * (3571. * 2.));
 }
 
 void main() {
@@ -63,7 +65,8 @@ void main() {
 
   float s = length(LIGHT_POS - pos) / (6.0 * LIGHT_INTENSITY);
   float f = 10.0;
-  float attenuation = LIGHT_INTENSITY * (pow(1-s*s, 2)/(1+f*s*s));
-  vec3 bd = theta * attenuation * LIGHT_COLOR;
+  float attenuation =LIGHT_INTENSITY * (pow(1-s*s, 2)/(1+f*s*s));
+  attenuation *= index / (push_constants.resolution * push_constants.grass_height);
+  vec3 bd = (theta * attenuation) * LIGHT_COLOR;
   o_color = vec4(grass_color * bd, 1.0);
 }
