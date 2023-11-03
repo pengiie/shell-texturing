@@ -42,7 +42,7 @@ pub struct ShellRenderer {
     pipeline: Option<ShellPipeline>,
     plane_mesh: Mesh,
     resolution: u32,
-    grass_height: f32,
+    shell_thickness: f32,
 }
 
 struct ShellPipeline {
@@ -81,15 +81,15 @@ impl ShellRenderer {
             &shader_dependency_signal,
         );
 
-        let plane_mesh =
-            MeshFactory::factory(vulkan, vulkan_allocator, vulkan_stager).create_plane();
+        let plane_mesh = MeshFactory::factory(vulkan, vulkan_allocator, vulkan_stager)
+            .create_sphere_icosahedron(3);
 
         Self {
             shader_dependency_signal,
             pipeline: None,
             plane_mesh,
             resolution: 10,
-            grass_height: 10.0,
+            shell_thickness: 0.5,
         }
     }
 
@@ -174,7 +174,7 @@ impl ShellRenderer {
                     &ShellPushConstants {
                         time: current_time,
                         resolution: self.resolution,
-                        grass_height: self.grass_height,
+                        grass_height: self.shell_thickness,
                     },
                 );
 
@@ -188,7 +188,8 @@ impl ShellRenderer {
                 .bind_index_buffer(self.plane_mesh.index_buffer(), vk::IndexType::UINT32);
             render_manager.frame().command_buffer().draw_indexed(
                 self.plane_mesh.vertex_count() as u32,
-                f32::floor(self.grass_height * self.resolution as f32) as u32,
+                // f32::floor(self.grass_height * self.resolution as f32) as u32,
+                self.resolution,
                 0,
                 0,
                 0,
@@ -330,20 +331,21 @@ impl ShellRenderer {
             modified = true;
         }
         if input.is_key_repeat(Key::J) || input.is_key_pressed(Key::J) {
-            shell_renderer.grass_height = (shell_renderer.grass_height - 0.1).max(0.1);
+            shell_renderer.shell_thickness = (shell_renderer.shell_thickness - 0.1).max(0.05);
             modified = true;
         }
         if input.is_key_repeat(Key::K) || input.is_key_pressed(Key::K) {
-            shell_renderer.grass_height += 0.1;
+            shell_renderer.shell_thickness += 0.02;
             modified = true;
         }
 
         if modified {
             println!("Resolution: {}", shell_renderer.resolution);
-            println!("Grass height: {}", shell_renderer.grass_height);
+            println!("Grass height: {}", shell_renderer.shell_thickness);
             println!(
                 "Plane count: {}",
-                f32::floor(shell_renderer.grass_height * shell_renderer.resolution as f32) as u32
+                f32::floor(shell_renderer.shell_thickness * shell_renderer.resolution as f32)
+                    as u32
             );
         }
     }
