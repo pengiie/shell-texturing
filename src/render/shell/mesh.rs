@@ -346,7 +346,15 @@ impl<'a, 'b, 'c> MeshFactory<'a, 'b, 'c> {
             v: f32,
         ) -> ((f32, f32, f32), (f32, f32), (f32, f32, f32)) {
             let length = (x * x + y * y + z * z).sqrt();
+            let mut rot_x = f32::atan2(x, -z);
+            if rot_x < 0.0 {
+                rot_x += 2.0 * std::f32::consts::PI;
+            }
             let normalized = (x / length, y / length, z / length);
+            let uv = (
+                rot_x / (2.0 * std::f32::consts::PI),
+                (normalized.1 + 1.0) / 2.0,
+            );
             (normalized.clone(), (u, v), normalized.clone())
         }
 
@@ -355,19 +363,34 @@ impl<'a, 'b, 'c> MeshFactory<'a, 'b, 'c> {
             ico(0.0, t, -1.0, 1.0 / 11.0, 1.0),
             ico(-1.0, 0.0, -t, 0.0, 2.0 / 3.0),
             ico(1.0, 0.0, -t, 2.0 / 11.0, 2.0 / 3.0),
-            ico(0.0, -t, -t, 1.0 / 11.0, 1.0 / 3.0),
+            ico(0.0, -t, -1.0, 1.0 / 11.0, 1.0 / 3.0),
             ico(t, -1.0, 0.0, 4.0 / 11.0, 1.0 / 3.0),
             ico(0.0, -t, 1.0, 2.0 / 11.0, 0.0),
             ico(t, 1.0, 0.0, 4.0 / 11.0, 2.0 / 3.0),
             ico(1.0, 0.0, t, 5.0 / 11.0, 1.0 / 3.0),
             ico(0.0, t, 1.0, 6.0 / 11.0, 2.0 / 3.0),
+            ico(-1.0, 0.0, t, 7.0 / 11.0, 1.0 / 3.0),
+            ico(0.0, t, -1.0, 3.0 / 11.0, 1.0),
+            ico(0.0, t, -1.0, 5.0 / 11.0, 1.0),
+            ico(0.0, -t, 1.0, 4.0 / 11.0, 0.0),
+            ico(0.0, -t, 1.0, 6.0 / 11.0, 0.0),
+            ico(-t, 1.0, 0.0, 8.0 / 11.0, 2.0 / 3.0),
+            ico(0.0, t, -1.0, 7.0 / 11.0, 1.0),
+            ico(-t, -1.0, 0.0, 9.0 / 11.0, 1.0 / 3.0),
+            ico(0.0, -t, 1.0, 8.0 / 11.0, 0.0),
+            ico(0.0, t, -1.0, 9.0 / 11.0, 1.0),
+            ico(0.0, -t, 1.0, 10.0 / 11.0, 0.0),
+            ico(-1.0, 0.0, -t, 10.0 / 11.0, 2.0 / 3.0),
+            ico(0.0, -t, -1.0, 1.0, 1.0 / 3.0),
         ];
 
         // Triangles in order of the net going diagonally down.
         let indices = vec![
             0, 1, 2, 2, 1, 3, 2, 3, 4, 4, 3, 5, // First triangle strip.
-            2, 6, 0, 2, 4, 6, 6, 4, 7, 7, 4, 5, // Second triangle strip.
-            0, 6, 8,
+            2, 6, 10, 2, 4, 6, 6, 4, 7, 7, 4, 12, // Second triangle strip.
+            11, 6, 8, 8, 6, 7, 7, 8, 9, 9, 7, 13, // Third triangle strip.
+            15, 8, 14, 14, 8, 9, 14, 9, 16, 16, 9, 17, // Fourth triangle strip.
+            18, 14, 20, 20, 14, 16, 20, 16, 21, 21, 16, 19, // Fifth triangle strip.
         ];
         (vertices, indices)
     }

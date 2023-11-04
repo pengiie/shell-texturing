@@ -8,6 +8,7 @@ layout(location = 0) out vec3 p_position;
 layout(location = 1) out vec2 p_uv;
 layout(location = 2) out vec3 p_normal;
 layout (location = 3) out uint p_index;
+layout (location = 4) out uint p_v_index;
 
 layout(set = 0, binding = 0) uniform CameraUniform {
   mat4 proj;
@@ -35,9 +36,9 @@ void main() {
 
   // Calculate instance offset
   float t = (1.0 / sqrt(5.0));
-  if(gl_VertexIndex == 4) {
-    // position = vec3(2*t, -t, 0);
-  }
+  if(gl_VertexIndex == 7) {
+    // h = 3.0;
+      }
   position += h * push_constants.grass_height * position;
   position.y -= (1 - CURVATURE) * pow(h, 2);
 
@@ -48,4 +49,5 @@ void main() {
   p_uv = uv;
   p_normal = normal;
   p_index = gl_InstanceIndex;
+  p_v_index = gl_VertexIndex;
 }

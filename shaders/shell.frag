@@ -6,6 +6,7 @@ layout (location = 0) in vec3 pos;
 layout (location = 1) in vec2 uv;
 layout (location = 2) in vec3 normal;
 layout (location = 3) flat in uint index;
+layout (location = 4) flat in uint v_index;
 
 layout(push_constant) uniform PushConstants {
   // Seconds since start.
@@ -72,7 +73,7 @@ void main() {
   vec3 grass_to_light = normalize(LIGHT_POS - pos);
   //
   // float theta = max(dot(normal, grass_to_light), 0);
-  float theta = clamp(pow(dot(normal, grass_to_light) * 0.5 + 0.5, 2), 0.0, 1.0);
+  float theta = dot(normal, grass_to_light) * 0.5 + 0.5;
   //
   float s = length(LIGHT_POS - pos) / (6.0 * LIGHT_INTENSITY);
   float f = 10.0;

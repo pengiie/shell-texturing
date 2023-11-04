@@ -15,7 +15,7 @@ pub fn setup_render_preset(app_builder: &mut AppBuilder) {
     setup_render_manager(
         app_builder,
         &RenderManagerConfig::builder()
-            .resolution((1920, 1080))
+            .resolution((2560, 1440))
             .frames_in_flight(2)
             .backbuffer_image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
             .build(),
