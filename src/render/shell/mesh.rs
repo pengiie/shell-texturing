@@ -21,6 +21,7 @@ struct GlslVec2f {
     y: f32,
 }
 
+#[repr(C)]
 pub struct Vertex {
     position: GlslVec3f,
     uv: GlslVec2f,
@@ -119,14 +120,14 @@ impl Mesh {
                 .binding(0)
                 .location(1)
                 .format(vk::Format::R32G32_SFLOAT)
-                .offset(std::mem::size_of::<GlslVec3f>() as u32)
+                .offset(std::mem::align_of::<GlslVec3f>() as u32)
                 .build(),
             vk::VertexInputAttributeDescription::builder()
                 .binding(0)
                 .location(2)
                 .format(vk::Format::R32G32B32_SFLOAT)
                 .offset(
-                    (std::mem::size_of::<GlslVec3f>() + std::mem::size_of::<GlslVec2f>()) as u32,
+                    (std::mem::align_of::<GlslVec3f>() + std::mem::align_of::<GlslVec2f>()) as u32,
                 )
                 .build(),
         ]
@@ -252,7 +253,7 @@ impl<'a, 'b, 'c> MeshFactory<'a, 'b, 'c> {
     }
 
     pub fn create_sphere_icosahedron(&mut self, subdivisions: u32) -> Mesh {
-        let (vertices, indices) = Self::icosahedrom();
+        let (vertices, indices) = Self::icosahedron();
 
         let mut vertices = vertices;
         let mut indices = indices;
@@ -333,55 +334,40 @@ impl<'a, 'b, 'c> MeshFactory<'a, 'b, 'c> {
         )
     }
 
-    fn icosahedrom() -> (
+    fn icosahedron() -> (
         Vec<((f32, f32, f32), (f32, f32), (f32, f32, f32))>,
         Vec<u32>,
     ) {
-        let t = (1.0 + 5.0_f32.sqrt()) / 2.0;
-        fn ico(x: f32, y: f32, z: f32) -> ((f32, f32, f32), (f32, f32), (f32, f32, f32)) {
-            let point = (x, y, z);
-            let u = (point.0.atan2(point.2) + std::f32::consts::PI) / (2.0 * std::f32::consts::PI);
-            let v = (point.1 + 1.0) / 2.0;
-            (point.clone(), (u, v), point.clone())
+        fn ico(
+            x: f32,
+            y: f32,
+            z: f32,
+            u: f32,
+            v: f32,
+        ) -> ((f32, f32, f32), (f32, f32), (f32, f32, f32)) {
+            let length = (x * x + y * y + z * z).sqrt();
+            let normalized = (x / length, y / length, z / length);
+            (normalized.clone(), (u, v), normalized.clone())
         }
+
+        let t = (1.0 + 5.0f32.sqrt()) / 2.0;
         let vertices = vec![
-            ico(-1.0, t, 0.0),
-            ico(1.0, t, 0.0),
-            ico(-1.0, -t, 0.0),
-            ico(1.0, -t, 0.0),
-            ico(0.0, -1.0, t),
-            ico(0.0, 1.0, t),
-            ico(0.0, -1.0, -t),
-            ico(0.0, 1.0, -t),
-            ico(t, 0.0, -1.0),
-            ico(t, 0.0, 1.0),
-            ico(-t, 0.0, -1.0),
-            ico(-t, 0.0, 1.0),
+            ico(0.0, t, -1.0, 1.0 / 11.0, 1.0),
+            ico(-1.0, 0.0, -t, 0.0, 2.0 / 3.0),
+            ico(1.0, 0.0, -t, 2.0 / 11.0, 2.0 / 3.0),
+            ico(0.0, -t, -t, 1.0 / 11.0, 1.0 / 3.0),
+            ico(t, -1.0, 0.0, 4.0 / 11.0, 1.0 / 3.0),
+            ico(0.0, -t, 1.0, 2.0 / 11.0, 0.0),
+            ico(t, 1.0, 0.0, 4.0 / 11.0, 2.0 / 3.0),
+            ico(1.0, 0.0, t, 5.0 / 11.0, 1.0 / 3.0),
+            ico(0.0, t, 1.0, 6.0 / 11.0, 2.0 / 3.0),
         ];
 
-        // Normalize vertices and normals.
-        let vertices = vertices
-            .into_iter()
-            .map(|(position, uv, normal)| {
-                let length =
-                    (position.0 * position.0 + position.1 * position.1 + position.2 * position.2)
-                        .sqrt();
-                (
-                    (
-                        position.0 / length,
-                        position.1 / length,
-                        position.2 / length,
-                    ),
-                    uv,
-                    (normal.0 / length, normal.1 / length, normal.2 / length),
-                )
-            })
-            .collect::<Vec<_>>();
-
+        // Triangles in order of the net going diagonally down.
         let indices = vec![
-            0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2, 10, 7,
-            6, 7, 1, 8, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4, 11, 6, 2, 10,
-            8, 6, 7, 9, 8, 1,
+            0, 1, 2, 2, 1, 3, 2, 3, 4, 4, 3, 5, // First triangle strip.
+            2, 6, 0, 2, 4, 6, 6, 4, 7, 7, 4, 5, // Second triangle strip.
+            0, 6, 8,
         ];
         (vertices, indices)
     }

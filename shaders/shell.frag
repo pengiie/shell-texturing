@@ -19,12 +19,12 @@ layout(push_constant) uniform PushConstants {
 const float TAU = 6.28318530718;
 const vec3 GRASS_COLOR = vec3(0.0, 0.5, 0.0);
 
-const vec3 LIGHT_POS = vec3(1.3, 2.5, 1.5);
-const float LIGHT_INTENSITY = 1.3;
+const vec3 LIGHT_POS = vec3(2.3, 1.5, -0.5);
+const float LIGHT_INTENSITY = 1.6;
 const vec3 LIGHT_COLOR = vec3(1.0, 1, 1.0);
 const vec3 UP_NORMAL = vec3(0.0, 1.0, 0.0);
 
-const float density = 366;
+const float density = 126;
 const float thickness = 3;
 
 float hash(uint n) {
@@ -40,16 +40,17 @@ void main() {
   // // Calculate the position of the grass blade.
   // vec2 block_uv = floor(fract(uv + vec2(push_constants.time / 5, cos(push_constants.time/ 10))) * density) * 2 - 1;
   //
-  vec2 new_uv = vec2((uv * density));
+  vec2 new_uv = vec2(uv * vec2(11, 3) * density);
   vec2 local_uv = fract(new_uv) * 2 - 1;
   uvec2 tid = uvec2(new_uv);
-  uint seed = (tid.x + 100) * (tid.y + 100) * 10;
+  uint seed = (tid.x + 100) * (tid.y + 50) * 10;
   float rand = hash(seed);
   float h = float(index) / float(push_constants.resolution);
   bool outsideThickness = length(local_uv) > (thickness * (rand-h));
   if (outsideThickness && index > 0) {
     discard;
   }
+  // color = vec3(local_uv, 0.0);
 
   // float r = hash(seed);
   // float di = 1 - (index / float(push_constants.resolution * push_constants.grass_height));
@@ -78,6 +79,6 @@ void main() {
   float attenuation =LIGHT_INTENSITY * (pow(1-s*s, 2)/(1+f*s*s));
   float ao = pow(h, 2);
   // attenuation *= pow(h);
-  vec3 bd = (theta * attenuation) * LIGHT_COLOR;
+  vec3 bd = (ao * theta * attenuation) * LIGHT_COLOR;
   o_color = vec4(color * bd, 1.0);
 }

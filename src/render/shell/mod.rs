@@ -88,8 +88,8 @@ impl ShellRenderer {
             shader_dependency_signal,
             pipeline: None,
             plane_mesh,
-            resolution: 10,
-            shell_thickness: 0.5,
+            resolution: 256,
+            shell_thickness: 0.35,
         }
     }
 
