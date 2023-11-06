@@ -1,4 +1,4 @@
-use std::{any::Any, sync::Arc};
+use std::{any::Any, ops::Deref, sync::Arc};
 
 use ash::vk;
 use pyrite::{
@@ -6,24 +6,38 @@ use pyrite::{
     render::render_manager::{self, RenderManager},
     vulkan::{
         CommandBuffer, ComputePipeline, ComputePipelineInfo, DescriptorSet, DescriptorSetLayout,
-        Image, ImageInfo, Sampler, SamplerInfo, Shader, Vulkan, VulkanAllocator,
+        Image, ImageDep, ImageInfo, InternalImage, Sampler, SamplerInfo, Shader, Vulkan,
+        VulkanAllocator,
     },
 };
 
 use super::{
     render::RenderPipeline,
+    shell::ShellRenderer,
     watched_shaders::{self, DependencySignal, WatchedShaders},
 };
 
 pub fn setup_post_processing(app_builder: &mut AppBuilder) {
-    let post_processing = PostProcessing::new(
-        &*app_builder.get_resource::<Vulkan>(),
-        &mut *app_builder.get_resource_mut::<VulkanAllocator>(),
-        &*app_builder.get_resource::<RenderManager>(),
-        &*app_builder.get_resource::<RenderPipeline>(),
-        &mut *app_builder.get_resource_mut::<Assets>(),
-        &mut *app_builder.get_resource_mut::<WatchedShaders>(),
-    );
+    let post_processing = {
+        let in_image = {
+            let a = app_builder.get_resource::<ShellRenderer>();
+            a.resolve_image().create_dep()
+        };
+        let in_depth_image = app_builder
+            .get_resource::<RenderPipeline>()
+            .backbuffer_depth_image()
+            .create_dep();
+        PostProcessing::new(
+            &*app_builder.get_resource::<Vulkan>(),
+            &mut *app_builder.get_resource_mut::<VulkanAllocator>(),
+            &*app_builder.get_resource::<RenderManager>(),
+            &*app_builder.get_resource::<RenderPipeline>(),
+            &mut *app_builder.get_resource_mut::<Assets>(),
+            &mut *app_builder.get_resource_mut::<WatchedShaders>(),
+            in_image,
+            in_depth_image,
+        )
+    };
     app_builder.add_resource(post_processing);
 
     app_builder.add_system(PostProcessing::update_system);
@@ -39,6 +53,8 @@ struct PushConstants {
 pub struct PostProcessing {
     pipeline: Option<ComputePipeline>,
     shader_dependency_signal: DependencySignal,
+    in_image: ImageDep,
+    in_depth_image: ImageDep,
     out_image: Image,
     descriptor_set_layout: DescriptorSetLayout,
     depth_sampler: Sampler,
@@ -53,6 +69,8 @@ impl PostProcessing {
         render_pipeline: &RenderPipeline,
         assets: &mut Assets,
         watched_shaders: &mut WatchedShaders,
+        in_image: ImageDep,
+        in_depth_image: ImageDep,
     ) -> Self {
         let out_image = Image::new(
             vulkan,
@@ -113,12 +131,12 @@ impl PostProcessing {
 
         descriptor_set
             .write()
-            .set_storage_image(0, render_pipeline.backbuffer_image())
-            .set_storage_image(1, &out_image)
+            .set_storage_image(0, in_image.clone())
+            .set_storage_image(1, out_image.create_dep())
             .set_combined_image_sampler(
                 2,
                 vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-                render_pipeline.backbuffer_depth_image(),
+                in_depth_image.clone(),
                 &depth_sampler,
             )
             .submit_writes();
@@ -126,6 +144,8 @@ impl PostProcessing {
         Self {
             pipeline: None,
             shader_dependency_signal,
+            in_image,
+            in_depth_image,
             out_image,
             descriptor_set_layout,
             depth_sampler,
@@ -145,34 +165,12 @@ impl PostProcessing {
                 vk::DependencyFlags::empty(),
                 &[],
                 &[],
-                &[
-                    render_pipeline.backbuffer_image().image_memory_barrier(
-                        vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-                        vk::ImageLayout::GENERAL,
-                        vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
-                        vk::AccessFlags::SHADER_READ,
-                    ),
-                    vk::ImageMemoryBarrier::builder()
-                        .image(render_pipeline.backbuffer_depth_image().image())
-                        .src_access_mask(vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE)
-                        .dst_access_mask(vk::AccessFlags::SHADER_READ)
-                        .old_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-                        .new_layout(vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL)
-                        .subresource_range(
-                            vk::ImageSubresourceRange::builder()
-                                .aspect_mask(vk::ImageAspectFlags::DEPTH)
-                                .layer_count(1)
-                                .level_count(1)
-                                .build(),
-                        )
-                        .build(),
-                    self.out_image.image_memory_barrier(
-                        vk::ImageLayout::UNDEFINED,
-                        vk::ImageLayout::GENERAL,
-                        vk::AccessFlags::empty(),
-                        vk::AccessFlags::SHADER_WRITE,
-                    ),
-                ],
+                &[self.out_image.image_memory_barrier(
+                    vk::ImageLayout::UNDEFINED,
+                    vk::ImageLayout::GENERAL,
+                    vk::AccessFlags::empty(),
+                    vk::AccessFlags::SHADER_WRITE,
+                )],
             );
 
             command_buffer.bind_compute_pipeline(pipeline);

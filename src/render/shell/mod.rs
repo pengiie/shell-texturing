@@ -5,8 +5,8 @@ use pyrite::{
     prelude::{AppBuilder, Assets, Input, Key, Res, ResMut, Resource, Time},
     render::render_manager::{self, RenderManager},
     vulkan::{
-        AttachmentInfo, CommandBuffer, GraphicsPipeline, GraphicsPipelineInfo, Image, RenderPass,
-        Shader, Subpass, Vulkan, VulkanAllocator, VulkanStager,
+        AttachmentInfo, CommandBuffer, GraphicsPipeline, GraphicsPipelineInfo, Image, ImageInfo,
+        InternalImage, RenderPass, Shader, Subpass, Vulkan, VulkanAllocator, VulkanStager,
     },
 };
 
@@ -26,6 +26,7 @@ pub fn setup_shell_renderer(app_builder: &mut AppBuilder) {
         &*app_builder.get_resource::<Vulkan>(),
         &mut *app_builder.get_resource_mut::<VulkanAllocator>(),
         &mut *app_builder.get_resource_mut::<VulkanStager>(),
+        &*app_builder.get_resource::<RenderPipeline>(),
     );
     app_builder.add_resource(shell_renderer);
     app_builder.add_system(ShellRenderer::update_system);
@@ -40,6 +41,8 @@ const FRAGMENT_NAME: &str = "shell_frag";
 pub struct ShellRenderer {
     shader_dependency_signal: watched_shaders::DependencySignal,
     pipeline: Option<ShellPipeline>,
+    shell_resolve_image: Image,
+    shell_resolve_depth_image: Image,
     plane_mesh: Mesh,
     resolution: u32,
     shell_thickness: f32,
@@ -65,6 +68,7 @@ impl ShellRenderer {
         vulkan: &Vulkan,
         vulkan_allocator: &mut VulkanAllocator,
         vulkan_stager: &mut VulkanStager,
+        render_pipeline: &RenderPipeline,
     ) -> Self {
         // Load shaders and create dependency signal to them.
         let shader_dependency_signal = watched_shaders.create_dependency_signal();
@@ -84,13 +88,61 @@ impl ShellRenderer {
         let plane_mesh = MeshFactory::factory(vulkan, vulkan_allocator, vulkan_stager)
             .create_sphere_icosahedron(3);
 
+        let shell_resolve_image = Image::new(
+            vulkan,
+            vulkan_allocator,
+            &ImageInfo::builder()
+                .extent(render_pipeline.backbuffer_image().image_extent())
+                .format(vk::Format::R8G8B8A8_UNORM)
+                .usage(
+                    vk::ImageUsageFlags::STORAGE
+                        | vk::ImageUsageFlags::COLOR_ATTACHMENT
+                        | vk::ImageUsageFlags::TRANSFER_DST,
+                )
+                .view_subresource_range(
+                    vk::ImageSubresourceRange::builder()
+                        .aspect_mask(vk::ImageAspectFlags::COLOR)
+                        .layer_count(1)
+                        .level_count(1)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let shell_resolve_depth_image = Image::new(
+            vulkan,
+            vulkan_allocator,
+            &ImageInfo::builder()
+                .extent(render_pipeline.backbuffer_image().image_extent())
+                .format(vk::Format::D32_SFLOAT)
+                .usage(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
+                .view_subresource_range(
+                    vk::ImageSubresourceRange::builder()
+                        .aspect_mask(vk::ImageAspectFlags::DEPTH)
+                        .layer_count(1)
+                        .level_count(1)
+                        .build(),
+                )
+                .build(),
+        );
+
         Self {
             shader_dependency_signal,
+            shell_resolve_image,
+            shell_resolve_depth_image,
             pipeline: None,
             plane_mesh,
             resolution: 256,
             shell_thickness: 0.35,
         }
+    }
+
+    pub fn resolve_image(&self) -> &Image {
+        &self.shell_resolve_image
+    }
+
+    pub fn resolve_depth_image(&self) -> &Image {
+        &self.shell_resolve_depth_image
     }
 
     pub fn is_ready(&self) -> bool {
@@ -151,6 +203,11 @@ impl ShellRenderer {
                     },
                 },
                 vk::ClearValue {
+                    color: vk::ClearColorValue {
+                        float32: [0.0, 0.0, 0.0, 1.0],
+                    },
+                },
+                vk::ClearValue {
                     depth_stencil: vk::ClearDepthStencilValue {
                         depth: 1.0,
                         stencil: 0,
@@ -197,9 +254,32 @@ impl ShellRenderer {
 
             render_manager.frame().command_buffer().end_render_pass();
 
+            render_manager.frame().command_buffer().pipeline_barrier(
+                vk::PipelineStageFlags::ALL_GRAPHICS,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[vk::ImageMemoryBarrier::builder()
+                    .image(render_pipeline.backbuffer_depth_image().image())
+                    .src_access_mask(vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE)
+                    .dst_access_mask(vk::AccessFlags::SHADER_READ)
+                    .old_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                    .new_layout(vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL)
+                    .subresource_range(
+                        vk::ImageSubresourceRange::builder()
+                            .aspect_mask(vk::ImageAspectFlags::DEPTH)
+                            .layer_count(1)
+                            .level_count(1)
+                            .build(),
+                    )
+                    .build()],
+            );
+
             return vec![
                 self.plane_mesh.vertex_buffer().clone(),
                 self.plane_mesh.index_buffer().clone(),
+                self.shell_resolve_image.create_dep(),
             ];
         }
 
@@ -215,14 +295,24 @@ impl ShellRenderer {
     ) {
         let mut subpass = Subpass::new();
         subpass.color_attachment(
-            &render_pipeline
-                .backbuffer_image()
-                .as_attachment(AttachmentInfo::default().load_op(vk::AttachmentLoadOp::CLEAR)),
+            &render_pipeline.backbuffer_image().as_attachment(
+                AttachmentInfo::default()
+                    .load_op(vk::AttachmentLoadOp::CLEAR)
+                    .samples(vk::SampleCountFlags::TYPE_4),
+            ),
+        );
+        subpass.resolve_attachment(
+            &self.shell_resolve_image.as_attachment(
+                AttachmentInfo::default()
+                    .samples(vk::SampleCountFlags::TYPE_1)
+                    .final_layout(vk::ImageLayout::GENERAL),
+            ),
         );
         subpass.depth_attachment(
             &render_pipeline.backbuffer_depth_image().as_attachment(
                 AttachmentInfo::default()
                     .load_op(vk::AttachmentLoadOp::CLEAR)
+                    .samples(vk::SampleCountFlags::TYPE_4)
                     .final_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
                     .is_depth(true),
             ),
@@ -280,6 +370,11 @@ impl ShellRenderer {
                         .depth_test_enable(true)
                         .depth_write_enable(true)
                         .depth_compare_op(vk::CompareOp::LESS_OR_EQUAL)
+                        .build(),
+                )
+                .multisample_state(
+                    vk::PipelineMultisampleStateCreateInfo::builder()
+                        .rasterization_samples(vk::SampleCountFlags::TYPE_4)
                         .build(),
                 )
                 .dynamic_state(

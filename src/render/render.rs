@@ -99,13 +99,10 @@ impl RenderPipeline {
             vulkan,
             vulkan_allocator,
             &ImageInfo::builder()
-                .usage(
-                    vk::ImageUsageFlags::COLOR_ATTACHMENT
-                        | vk::ImageUsageFlags::TRANSFER_SRC
-                        | vk::ImageUsageFlags::STORAGE,
-                )
+                .usage(vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::TRANSFER_SRC)
                 .extent(extent.clone())
                 .format(vk::Format::R8G8B8A8_UNORM)
+                .samples(vk::SampleCountFlags::TYPE_4)
                 .view_subresource_range(
                     vk::ImageSubresourceRange::builder()
                         .aspect_mask(vk::ImageAspectFlags::COLOR)
@@ -120,9 +117,14 @@ impl RenderPipeline {
             vulkan,
             vulkan_allocator,
             &ImageInfo::builder()
-                .usage(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | vk::ImageUsageFlags::SAMPLED)
+                .usage(
+                    vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT
+                        | vk::ImageUsageFlags::SAMPLED
+                        | vk::ImageUsageFlags::TRANSFER_SRC,
+                )
                 .extent(extent)
                 .format(vk::Format::D32_SFLOAT)
+                .samples(vk::SampleCountFlags::TYPE_4)
                 .view_subresource_range(
                     vk::ImageSubresourceRange::builder()
                         .aspect_mask(vk::ImageAspectFlags::DEPTH)

@@ -4,7 +4,7 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 layout(set = 0, binding = 0, rgba8) uniform readonly image2D in_img;
 layout(set = 0, binding = 1, rgba8) uniform writeonly image2D out_img;
-layout(set = 0, binding = 2) uniform sampler2D depth_sampler;
+layout(set = 0, binding = 2) uniform sampler2DMS depth_sampler;
 
 layout(push_constant) uniform PushConstants {
   uint width;
@@ -29,7 +29,7 @@ void main() {
   vec4 pixel = imageLoad(in_img, pix_pos);
 
   // Fog calculation
-  float depth = linearize_depth(texelFetch(depth_sampler, pix_pos, 0).r);
+  float depth = linearize_depth(texelFetch(depth_sampler, pix_pos, 1).r);
   float fog = clamp((1000/10)*pow(depth - 100/1000, 3), 0, 1);
   pixel.rgb = mix(pixel.rgb, vec3(0.3, 0.4, 0.68), fog);
 
