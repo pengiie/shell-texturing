@@ -1,0 +1,44 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, rgba8) uniform readonly image2D in_img;
+layout(set = 0, binding = 1, rgba8) uniform writeonly image2D out_img;
+layout(set = 0, binding = 2) uniform sampler2D depth_sampler;
+
+layout(push_constant) uniform PushConstants {
+  uint width;
+  uint height;
+} push_constants;
+
+const float CONTRAST = 1.22;
+const float BRIGHTNESS = 0.075;
+
+float linearize_depth(float depth) {
+  float zNear = 0.1;
+  float zFar = 1000.0;
+  return (2.0 * zNear) / (zFar + zNear - depth * (zFar - zNear));
+}
+
+void main() {
+  ivec2 pix_pos = ivec2(gl_GlobalInvocationID.xy);
+  if(pix_pos.x >= push_constants.width || pix_pos.y >= push_constants.height) {
+    return;
+  }
+
+  vec4 pixel = imageLoad(in_img, pix_pos);
+
+  // Fog calculation
+  float depth = linearize_depth(texelFetch(depth_sampler, pix_pos, 0).r);
+  float fog = clamp((1000/10)*pow(depth - 100/1000, 3), 0, 1);
+  pixel.rgb = mix(pixel.rgb, vec3(0.3, 0.4, 0.68), fog);
+
+  // Brightness and contract
+  pixel.rgb = CONTRAST * (pixel.rgb - 0.5) + 0.5 + BRIGHTNESS;
+
+  // Gray scale
+  float gray = dot(pixel.rgb, vec3(0.299, 0.587, 0.114));
+  // pixel.rgb = vec3(gray, gray, gray);
+
+  imageStore(out_img, pix_pos, pixel);
+}

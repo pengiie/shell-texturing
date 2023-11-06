@@ -36,7 +36,7 @@ float hash(uint n) {
 }
 
 void main() {
-  vec3 color = vec3(0.97, 0.97, 0.98);
+  vec3 color = vec3(0.77, 0.97, 0.28);
   //
   // // Calculate the position of the grass blade.
   // vec2 block_uv = floor(fract(uv + vec2(push_constants.time / 5, cos(push_constants.time/ 10))) * density) * 2 - 1;

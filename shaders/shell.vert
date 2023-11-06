@@ -25,7 +25,7 @@ layout(push_constant) uniform PushConstants {
 } push_constants;
 
 const float SHELL_LENGTH = 0.5;
-const float CURVATURE = 0.89;
+const float CURVATURE = 0.78;
 
 void main() {
   vec3 position = vertex;

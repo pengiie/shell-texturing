@@ -10,6 +10,7 @@ use pyrite::{
 
 use super::{
     camera::Camera,
+    post::PostProcessing,
     shell::{setup_shell_renderer, ShellRenderer},
 };
 
@@ -33,6 +34,7 @@ pub struct RenderPipeline {
     descriptor_set_pool: DescriptorSetPool,
     descriptor_set_layout: DescriptorSetLayout,
     frames: Vec<Frame>,
+    backbuffer_image: Image,
     backbuffer_depth_image: Image,
 }
 
@@ -70,12 +72,56 @@ impl RenderPipeline {
             .map(|descriptor_set| Frame { descriptor_set })
             .collect::<Vec<_>>();
 
+        let extent = vk::Extent3D {
+            width: 2560,
+            height: 1440,
+            depth: 1,
+        };
+
+        for i in 1..150 {
+            let p = unsafe {
+                vulkan
+                    .instance()
+                    .get_physical_device_image_format_properties(
+                        vulkan.physical_device().physical_device(),
+                        vk::Format::from_raw(i),
+                        vk::ImageType::TYPE_2D,
+                        vk::ImageTiling::OPTIMAL,
+                        vk::ImageUsageFlags::STORAGE,
+                        vk::ImageCreateFlags::empty(),
+                    )
+            };
+            println!("{:?}", p);
+            println!("Image format is: {}", i);
+        }
+
+        let backbuffer_image = Image::new(
+            vulkan,
+            vulkan_allocator,
+            &ImageInfo::builder()
+                .usage(
+                    vk::ImageUsageFlags::COLOR_ATTACHMENT
+                        | vk::ImageUsageFlags::TRANSFER_SRC
+                        | vk::ImageUsageFlags::STORAGE,
+                )
+                .extent(extent.clone())
+                .format(vk::Format::R8G8B8A8_UNORM)
+                .view_subresource_range(
+                    vk::ImageSubresourceRange::builder()
+                        .aspect_mask(vk::ImageAspectFlags::COLOR)
+                        .layer_count(1)
+                        .level_count(1)
+                        .build(),
+                )
+                .build(),
+        );
+
         let backbuffer_depth_image = Image::new(
             vulkan,
             vulkan_allocator,
             &ImageInfo::builder()
-                .usage(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
-                .extent(render_manager.backbuffer_image().image_extent())
+                .usage(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | vk::ImageUsageFlags::SAMPLED)
+                .extent(extent)
                 .format(vk::Format::D32_SFLOAT)
                 .view_subresource_range(
                     vk::ImageSubresourceRange::builder()
@@ -91,6 +137,7 @@ impl RenderPipeline {
             descriptor_set_pool,
             descriptor_set_layout,
             frames,
+            backbuffer_image,
             backbuffer_depth_image,
         }
     }
@@ -103,8 +150,16 @@ impl RenderPipeline {
         &mut self.frames[render_manager.frame_index()]
     }
 
+    pub fn descriptor_pool(&self) -> &DescriptorSetPool {
+        &self.descriptor_set_pool
+    }
+
     pub fn descriptor_set_layout(&self) -> &DescriptorSetLayout {
         &self.descriptor_set_layout
+    }
+
+    pub fn backbuffer_image(&self) -> &Image {
+        &self.backbuffer_image
     }
 
     pub fn backbuffer_depth_image(&self) -> &Image {
@@ -122,12 +177,13 @@ impl RenderPipeline {
         mut render_manager: ResMut<RenderManager>,
         vulkan: Res<Vulkan>,
         shell_renderer: Res<ShellRenderer>,
+        post_processing: Res<PostProcessing>,
         time: Res<Time>,
     ) {
         let render_pipeline = &mut *render_pipeline;
         let render_manager = &mut *render_manager;
 
-        let ready_to_render = shell_renderer.is_ready();
+        let ready_to_render = shell_renderer.is_ready() && post_processing.is_ready();
 
         // See if we are ready to render.
         if ready_to_render {
@@ -140,10 +196,17 @@ impl RenderPipeline {
                 .set_uniform_buffer(0, &camera.camera_buffer())
                 .submit_writes();
 
+            // Render the furry shell textured ball.
             let shell_deps = shell_renderer.render(
                 render_manager,
                 render_pipeline,
                 time.elapsed().as_secs_f32(),
+            );
+
+            // Apply post processing.
+            let post_processing_deps = post_processing.render(
+                render_manager.frame_mut().command_buffer_mut(),
+                render_pipeline,
             );
 
             let mut frame_deps = vec![
@@ -154,17 +217,30 @@ impl RenderPipeline {
                 render_pipeline.backbuffer_depth_image().create_dep() as Arc<dyn Any + Send + Sync>,
             ];
             frame_deps.extend(shell_deps);
+            frame_deps.extend(post_processing_deps);
+
             // Set the final layout of the backbuffer to the last layout.
-            render_manager.set_frame_config(&FrameConfig {
-                backbuffer_final_layout: vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-                used_objects: frame_deps,
-            });
+            render_manager.set_frame_config(
+                &FrameConfig::builder()
+                    .backbuffer(
+                        post_processing.output_image(),
+                        vk::ImageLayout::GENERAL,
+                        vk::AccessFlags::SHADER_WRITE,
+                    )
+                    .used_objects(frame_deps)
+                    .build(),
+            );
         } else {
             // If not, do nothing.
-            render_manager.set_frame_config(&FrameConfig {
-                backbuffer_final_layout: vk::ImageLayout::UNDEFINED,
-                used_objects: vec![],
-            });
+            render_manager.set_frame_config(
+                &FrameConfig::builder()
+                    .backbuffer(
+                        render_pipeline.backbuffer_image(),
+                        vk::ImageLayout::UNDEFINED,
+                        vk::AccessFlags::empty(),
+                    )
+                    .build(),
+            );
         }
     }
 }

@@ -104,7 +104,7 @@ impl ShellRenderer {
         current_time: f32,
     ) -> Vec<Arc<dyn Any + Send + Sync>> {
         if let Some(pipeline) = &self.pipeline {
-            let backbuffer_image = render_manager.backbuffer_image();
+            let backbuffer_image = render_pipeline.backbuffer_image();
 
             let render_area = vk::Rect2D {
                 offset: vk::Offset2D { x: 0, y: 0 },
@@ -147,7 +147,7 @@ impl ShellRenderer {
             let clear_values = &[
                 vk::ClearValue {
                     color: vk::ClearColorValue {
-                        float32: [0.568, 0.8, 0.85, 1.0],
+                        float32: [0.0, 0.0, 0.0, 1.0],
                     },
                 },
                 vk::ClearValue {
@@ -215,7 +215,7 @@ impl ShellRenderer {
     ) {
         let mut subpass = Subpass::new();
         subpass.color_attachment(
-            &render_manager
+            &render_pipeline
                 .backbuffer_image()
                 .as_attachment(AttachmentInfo::default().load_op(vk::AttachmentLoadOp::CLEAR)),
         );
