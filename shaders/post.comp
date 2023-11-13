@@ -12,12 +12,16 @@ layout(push_constant) uniform PushConstants {
 } push_constants;
 
 const float CONTRAST = 1.22;
-const float BRIGHTNESS = 0.075;
+const float BRIGHTNESS = 0.095;
 
 float linearize_depth(float depth) {
   float zNear = 0.1;
   float zFar = 1000.0;
   return (2.0 * zNear) / (zFar + zNear - depth * (zFar - zNear));
+}
+
+vec3 quantize(vec3 color, float levels) {
+  return floor(color * levels) / levels;
 }
 
 void main() {
@@ -39,6 +43,11 @@ void main() {
   // Gray scale
   float gray = dot(pixel.rgb, vec3(0.299, 0.587, 0.114));
   // pixel.rgb = vec3(gray, gray, gray);
+  
+  // Modify colors so darker shades are brighter, quantize, and reverse.
+  pixel.rgb = pow(pixel.rgb, vec3(1/1.3));
+  pixel.rgb = quantize(pixel.rgb, 16);
+  pixel.rgb = pow(pixel.rgb, vec3(1.4));
 
   imageStore(out_img, pix_pos, pixel);
 }

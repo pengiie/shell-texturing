@@ -25,22 +25,15 @@ layout(push_constant) uniform PushConstants {
 } push_constants;
 
 const float SHELL_LENGTH = 0.5;
-const float CURVATURE = 0.78;
+const float CURVATURE = 0.88;
 
 void main() {
   vec3 position = vertex;
   // position = ICOSAHEDRON_VERTICES[gl_VertexIndex];
   float h = float(gl_InstanceIndex) / push_constants.resolution;
 
-  // h = pow(h, 2);
-
-  // Calculate instance offset
-  float t = (1.0 / sqrt(5.0));
-  if(gl_VertexIndex == 7) {
-    // h = 3.0;
-      }
-  position += h * push_constants.grass_height * position;
-  position.y -= (1 - CURVATURE) * pow(h, 2);
+  position += sqrt(h) * push_constants.grass_height * position;
+  position.y -= (1 - CURVATURE) * pow(h, 1.5);
 
   gl_Position = camera.proj * camera.view * vec4(position, 1.0);
 

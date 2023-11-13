@@ -86,7 +86,7 @@ impl ShellRenderer {
         );
 
         let plane_mesh = MeshFactory::factory(vulkan, vulkan_allocator, vulkan_stager)
-            .create_sphere_icosahedron(3);
+            .create_sphere_icosahedron(2);
 
         let shell_resolve_image = Image::new(
             vulkan,
@@ -280,6 +280,8 @@ impl ShellRenderer {
                 self.plane_mesh.vertex_buffer().clone(),
                 self.plane_mesh.index_buffer().clone(),
                 self.shell_resolve_image.create_dep(),
+                backbuffer_image.create_dep(),
+                render_pipeline.backbuffer_depth_image().create_dep(),
             ];
         }
 

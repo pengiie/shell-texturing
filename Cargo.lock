@@ -1205,7 +1205,9 @@ name = "pyrite_app"
 version = "0.1.0"
 dependencies = [
  "downcast",
+ "parking_lot",
  "pyrite_app_macros",
+ "rayon",
 ]
 
 [[package]]
