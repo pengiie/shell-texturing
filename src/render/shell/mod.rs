@@ -132,7 +132,7 @@ impl ShellRenderer {
             shell_resolve_depth_image,
             pipeline: None,
             plane_mesh,
-            resolution: 256,
+            resolution: 128,
             shell_thickness: 0.35,
         }
     }

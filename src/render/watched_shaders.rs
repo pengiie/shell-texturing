@@ -2,13 +2,14 @@ use std::collections::{HashMap, HashSet};
 
 use pyrite::{
     asset::WatchedHandle,
+    desktop::PRE_UPDATE_STAGE,
     prelude::{AppBuilder, Assets, ResMut, Resource},
 };
 use uuid::Uuid;
 
 pub fn setup_watched_shaders(app_builder: &mut AppBuilder) {
     app_builder.add_resource(WatchedShaders::new());
-    app_builder.add_system(WatchedShaders::update_system);
+    app_builder.add_system_to_stage(WatchedShaders::update_system, PRE_UPDATE_STAGE);
 }
 
 #[derive(Resource)]

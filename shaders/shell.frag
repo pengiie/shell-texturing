@@ -18,7 +18,7 @@ layout(push_constant) uniform PushConstants {
 } push_constants;
 
 const float TAU = 6.28318530718;
-const vec3 GRASS_COLOR = vec3(0.0, 0.5, 0.0);
+const vec3 GRASS_COLOR = vec3(0.77, 0.97, 0.28);
 
 const vec3 LIGHT_POS = vec3(2.3, 1.5, -0.5);
 const float LIGHT_INTENSITY = 1.6;
@@ -28,20 +28,18 @@ const vec3 UP_NORMAL = vec3(0.0, 1.0, 0.0);
 const float density = 126;
 const float thickness = 3;
 
+// Copied integer hash from Acerola which was copied from Hugo Elias.
 float hash(uint n) {
-	// integer hash copied from Hugo Elias
 	n = (n << 13U) ^ n;
 	n = n * (n * n * 15731U + 0x789221U) + 0x13763129U;
 	return float(n & uint(0x7fffffffU)) / float(0x7fffffff);
 }
 
 void main() {
-  vec3 color = vec3(0.77, 0.97, 0.28);
-  //
-  // // Calculate the position of the grass blade.
-  // vec2 block_uv = floor(fract(uv + vec2(push_constants.time / 5, cos(push_constants.time/ 10))) * density) * 2 - 1;
-  //
-  vec2 new_uv = vec2(uv * vec2(11, 3) * density);
+  vec3 color = GRASS_COLOR;
+
+  // We multiply be 11 and 3 to get a uniform distribution of grass due to the way the way the triangle uvs are laid out.
+  vec2 new_uv = vec2(uv * density);
   vec2 local_uv = fract(new_uv) * 2 - 1;
   uvec2 tid = uvec2(new_uv);
   uint seed = (tid.x + 100) * (tid.y + 50) * 10;
