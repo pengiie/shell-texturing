@@ -11,7 +11,7 @@ layout(push_constant) uniform PushConstants {
   uint height;
 } push_constants;
 
-const float CONTRAST = 1.22;
+const float CONTRAST = 1.25;
 const float BRIGHTNESS = 0.095;
 
 float linearize_depth(float depth) {

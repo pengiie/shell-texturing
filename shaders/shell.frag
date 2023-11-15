@@ -20,8 +20,8 @@ layout(push_constant) uniform PushConstants {
 const float TAU = 6.28318530718;
 const vec3 GRASS_COLOR = vec3(0.77, 0.97, 0.28);
 
-const vec3 LIGHT_POS = vec3(2.3, 1.5, -0.5);
-const float LIGHT_INTENSITY = 1.6;
+const vec3 LIGHT_POS = vec3(2.3, 1.5, -2);
+const float LIGHT_INTENSITY = 2.5;
 const vec3 LIGHT_COLOR = vec3(1.0, 1, 1.0);
 const vec3 UP_NORMAL = vec3(0.0, 1.0, 0.0);
 
@@ -39,7 +39,7 @@ void main() {
   vec3 color = GRASS_COLOR;
 
   // We multiply be 11 and 3 to get a uniform distribution of grass due to the way the way the triangle uvs are laid out.
-  vec2 new_uv = vec2(uv * density);
+  vec2 new_uv = vec2(uv * vec2(11, 3) * density);
   vec2 local_uv = fract(new_uv) * 2 - 1;
   uvec2 tid = uvec2(new_uv);
   uint seed = (tid.x + 100) * (tid.y + 50) * 10;
@@ -49,35 +49,27 @@ void main() {
   if (outsideThickness && index > 0) {
     discard;
   }
-  // color = vec3(local_uv, 0.0);
 
-  // float r = hash(seed);
-  // float di = 1 - (index / float(push_constants.resolution * push_constants.grass_height));
-  // float height = push_constants.grass_height * r;
-  //
-  // vec3 color_variance = (r * 2 - 1) * vec3(0.2, 0.2, 0.3);
-  // grass_color += color_variance;
-  // 
-  // if (r > di && index != 0) {
-  //   grass_color = vec3(1.0, 0.0, 0.0);  
-  //   discard;
-  // }
-  //
-  // if (index == 0) {
-  //   grass_color = vec3(0.2, 0.1, 0.07);
-  // }
-  //
-  // // Lighting calculations.
+  // Calculate some color variance for each grass blade.
+  seed += 1632;
+  rand = hash(seed);
+  vec3 color_variance = (rand * 2 - 1) * vec3(0.15, 0.2, 0.15);
+  color += color_variance;
+
   vec3 grass_to_light = normalize(LIGHT_POS - pos);
-  //
-  // float theta = max(dot(normal, grass_to_light), 0);
-  float theta = dot(normal, grass_to_light) * 0.5 + 0.5;
-  //
+  
+  // Half lambert shading, looks nicer.
+  float theta = pow(dot(normal, grass_to_light) * 0.5 + 0.5, 1.6);
+  
+  // Constants to make the light falloff look nicer.
   float s = length(LIGHT_POS - pos) / (6.0 * LIGHT_INTENSITY);
   float f = 10.0;
-  float attenuation =LIGHT_INTENSITY * (pow(1-s*s, 2)/(1+f*s*s));
+
+  // As the object gets further away from the light, it recieves less light.
+  float attenuation = LIGHT_INTENSITY * (pow(1-s*s, 2)/(1+f*s*s));
+  
+  // Ambient occlusion, the shorter the blade the darker, less light it recieves.
   float ao = pow(h, 2);
-  // attenuation *= pow(h);
   vec3 bd = (ao * theta * attenuation) * LIGHT_COLOR;
   o_color = vec4(color * bd, 1.0);
 }
