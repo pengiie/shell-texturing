@@ -11,7 +11,7 @@ layout(push_constant) uniform PushConstants {
   uint height;
 } push_constants;
 
-const float CONTRAST = 1.22;
+const float CONTRAST = 1.25;
 const float BRIGHTNESS = 0.095;
 
 float linearize_depth(float depth) {
@@ -42,7 +42,7 @@ void main() {
 
   // Gray scale
   float gray = dot(pixel.rgb, vec3(0.299, 0.587, 0.114));
-  // pixel.rgb = vec3(gray, gray, gray);
+  // pixel.rgb = vec3(gray, gray, gray); // Uncomment to enable gray scale
   
   // Modify colors so darker shades are brighter, quantize, and reverse.
   pixel.rgb = pow(pixel.rgb, vec3(1/1.3));

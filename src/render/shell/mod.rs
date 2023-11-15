@@ -86,7 +86,7 @@ impl ShellRenderer {
         );
 
         let plane_mesh = MeshFactory::factory(vulkan, vulkan_allocator, vulkan_stager)
-            .create_sphere_icosahedron(2);
+            .create_sphere_icosahedron(3);
 
         let shell_resolve_image = Image::new(
             vulkan,
@@ -132,7 +132,7 @@ impl ShellRenderer {
             shell_resolve_depth_image,
             pipeline: None,
             plane_mesh,
-            resolution: 256,
+            resolution: 128,
             shell_thickness: 0.35,
         }
     }

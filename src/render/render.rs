@@ -78,23 +78,6 @@ impl RenderPipeline {
             depth: 1,
         };
 
-        for i in 1..150 {
-            let p = unsafe {
-                vulkan
-                    .instance()
-                    .get_physical_device_image_format_properties(
-                        vulkan.physical_device().physical_device(),
-                        vk::Format::from_raw(i),
-                        vk::ImageType::TYPE_2D,
-                        vk::ImageTiling::OPTIMAL,
-                        vk::ImageUsageFlags::STORAGE,
-                        vk::ImageCreateFlags::empty(),
-                    )
-            };
-            println!("{:?}", p);
-            println!("Image format is: {}", i);
-        }
-
         let backbuffer_image = Image::new(
             vulkan,
             vulkan_allocator,
