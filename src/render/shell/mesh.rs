@@ -127,7 +127,7 @@ impl Mesh {
                 .location(2)
                 .format(vk::Format::R32G32B32_SFLOAT)
                 .offset(
-                    (std::mem::align_of::<GlslVec3f>() + std::mem::align_of::<GlslVec2f>()) as u32,
+                    (std::mem::align_of::<GlslVec3f>() * 2) as u32,
                 )
                 .build(),
         ]

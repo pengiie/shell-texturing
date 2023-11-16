@@ -47,7 +47,7 @@ impl Camera {
         window.set_cursor_grab_mode(CursorGrabMode::None);
         window.set_cursor_visible(true);
         Self {
-            position: Vector3::new(0.0, 5.0, 0.0),
+            position: Vector3::new(0.0, 0.3, -3.0),
             rx: 0.0,
             ry: 0.0,
             speed: WALKING_SPEED,

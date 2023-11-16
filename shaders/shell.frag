@@ -21,7 +21,7 @@ const float TAU = 6.28318530718;
 const vec3 GRASS_COLOR = vec3(0.77, 0.97, 0.28);
 
 const vec3 LIGHT_POS = vec3(2.3, 1.5, -2);
-const float LIGHT_INTENSITY = 2.5;
+const float LIGHT_INTENSITY = 1.75;
 const vec3 LIGHT_COLOR = vec3(1.0, 1, 1.0);
 const vec3 UP_NORMAL = vec3(0.0, 1.0, 0.0);
 
@@ -59,7 +59,7 @@ void main() {
   vec3 grass_to_light = normalize(LIGHT_POS - pos);
   
   // Half lambert shading, looks nicer.
-  float theta = pow(dot(normal, grass_to_light) * 0.5 + 0.5, 1.6);
+  float theta = dot(normal, grass_to_light) * 0.5 + 0.5;
   
   // Constants to make the light falloff look nicer.
   float s = length(LIGHT_POS - pos) / (6.0 * LIGHT_INTENSITY);
